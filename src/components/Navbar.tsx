@@ -20,9 +20,6 @@ export default function Navbar() {
                     <Link href="/desktop" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
                         <span className="hidden sm:inline">Desktop Mode</span>
                     </Link>
-                    <Link href="/desktop" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
-                        <span className="hidden sm:inline">Desktop Mode</span>
-                    </Link>
                     {user ? (
                         <>
                             <Link

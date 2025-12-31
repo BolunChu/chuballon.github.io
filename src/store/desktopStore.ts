@@ -3,9 +3,11 @@ import { create } from 'zustand';
 export interface WindowState {
   id: string;
   title: string;
-  type: 'editor' | 'preview' | 'browser' | 'finder' | 'settings';
+  type: 'editor' | 'preview' | 'browser' | 'finder' | 'settings' | 'doc-viewer';
   content?: string;
   language?: string;
+  storagePath?: string; // For files
+  mimeType?: string;    // For files
   isOpen: boolean;
   isMinimized: boolean;
   isMaximized: boolean;

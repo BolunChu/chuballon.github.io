@@ -1,20 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useDesktopStore } from "@/store/desktopStore";
 import DesktopWindow from "@/components/desktop/DesktopWindow";
 import Dock from "@/components/desktop/Dock";
-import { FileCode, Globe, Loader2, ArrowLeft, LogOut } from "lucide-react";
+import { FileCode, Globe, Loader2, ArrowLeft, LogOut, Upload, FileText, File } from "lucide-react";
 import { useRouter } from "next/navigation";
-
-// Change Password Component to be rendered inside the "Settings" window
-// We'll use a portal or just simple conditioning in the Window component, 
-// but for now, let's keep it simple: The "Window" component can render React nodes if we updated the type,
-// or we just inject HTML form markup for the 'settings' type using regular React in the Page.
-// Actually, let's make the DesktopPage render a specific Overlay or just handle the Settings Window content separately.
+import { Rnd } from "react-rnd";
+import { X, Minus } from "lucide-react";
+import ChangePasswordForm from "@/components/ChangePasswordForm";
+import AdminPanel from "@/components/AdminPanel";
 
 interface Paste {
     id: string;
@@ -22,6 +20,8 @@ interface Paste {
     content: string;
     language: string;
     is_public: boolean;
+    mime_type?: string;
+    storage_path?: string;
 }
 
 export default function DesktopPage() {
@@ -29,48 +29,57 @@ export default function DesktopPage() {
     const { windows, openWindow } = useDesktopStore();
     const [pastes, setPastes] = useState<Paste[]>([]);
     const [loading, setLoading] = useState(true);
+    const [uploading, setUploading] = useState(false);
     const router = useRouter();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Load Pastes
-    useEffect(() => {
-        const loadData = async () => {
-            setLoading(true);
-            try {
-                let data: Paste[] = [];
-                if (user && credentials) {
-                    const { data: rpcData } = await supabase.rpc('api_get_my_pastes', {
-                        p_username: credentials.username,
-                        p_hash: credentials.hash
-                    });
-                    if (rpcData) data = rpcData;
-                } else {
-                    const { data: publicData } = await supabase
-                        .from("pastes")
-                        .select("*")
-                        .eq("is_public", true)
-                        .order("created_at", { ascending: false })
-                        .limit(50);
-                    if (publicData) data = publicData;
-                }
-                setPastes(data);
-            } catch (e) {
-                console.error("Failed to load desktop files", e);
-            } finally {
-                setLoading(false);
+    const loadData = async () => {
+        setLoading(true);
+        try {
+            let data: Paste[] = [];
+            if (user && credentials) {
+                const { data: rpcData } = await supabase.rpc('api_get_my_pastes', {
+                    p_username: credentials.username,
+                    p_hash: credentials.hash
+                });
+                if (rpcData) data = rpcData;
+            } else {
+                const { data: publicData } = await supabase
+                    .from("pastes")
+                    .select("*")
+                    .eq("is_public", true)
+                    .order("created_at", { ascending: false })
+                    .limit(50);
+                if (publicData) data = publicData;
             }
+            setPastes(data);
+        } catch (e) {
+            console.error("Failed to load desktop files", e);
+        } finally {
+            setLoading(false);
         }
+    }
+
+    useEffect(() => {
         loadData();
     }, [user, credentials]);
 
-    // Handle Open File
+    // Handle File Open
     const handleOpenFile = (paste: Paste) => {
-        const isHtml = paste.language.toLowerCase() === 'html';
+        // Determine Window Type
+        let type: 'editor' | 'preview' | 'doc-viewer' = 'editor';
+
+        if (paste.language === 'html') type = 'preview';
+        else if (paste.mime_type?.includes('pdf') || paste.mime_type?.includes('officedocument') || paste.mime_type?.includes('msword')) type = 'doc-viewer';
+
         openWindow({
             id: paste.id,
             title: paste.title || 'Untitled',
-            type: isHtml ? 'preview' : 'editor',
+            type,
             content: paste.content,
             language: paste.language,
+            storagePath: paste.storage_path,
+            mimeType: paste.mime_type,
             isOpen: true,
             isMinimized: false,
             isMaximized: false,
@@ -78,7 +87,6 @@ export default function DesktopPage() {
         });
     }
 
-    // Handle Open Settings (Change Password)
     const handleOpenSettings = () => {
         openWindow({
             id: 'settings',
@@ -88,19 +96,83 @@ export default function DesktopPage() {
             isMinimized: false,
             isMaximized: false,
             zIndex: 200,
-            size: { width: 400, height: 500 },
-            content: `
-            <div id="settings-root" class="h-full flex flex-col p-4">
-                <h2 class="text-xl font-bold mb-4">Account</h2>
-                <p class="text-sm text-gray-400 mb-4">Manage your credentials</p>
-                <!-- We will mount a React component here if possible, or just use this ID to render -->
-            </div>
-         `
+            size: { width: 400, height: 500 }
         });
     };
 
+    const handleFiles = async (files: FileList | null) => {
+        if (!files || files.length === 0 || !user || !credentials) return;
+
+        setUploading(true);
+        try {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                // 1. Upload to Storage
+                const ext = file.name.split('.').pop();
+                const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '')}`;
+                const filePath = `${user.username}/${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('uploads')
+                    .upload(filePath, file);
+
+                if (uploadError) {
+                    console.error("Upload failed for " + file.name, uploadError);
+                    continue;
+                }
+
+                // 2. Create DB Record
+                const { error: rpcError } = await supabase.rpc('api_create_paste', {
+                    p_username: credentials.username,
+                    p_hash: credentials.hash,
+                    p_content: '',
+                    p_language: ext || 'binary',
+                    p_title: file.name,
+                    p_description: 'Uploaded file',
+                    p_is_public: true,
+                    p_mime_type: file.type,
+                    p_storage_path: filePath
+                });
+
+                if (rpcError) console.error("DB failed for " + file.name, rpcError);
+            }
+
+            await loadData();
+
+        } catch (err) {
+            console.error("Batch upload error", err);
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    }
+
+    const handleUploadClick = () => {
+        fileInputRef.current?.click();
+    }
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        handleFiles(e.target.files);
+    }
+
+    // Icon helper
+    const getFileIcon = (paste: Paste) => {
+        if (paste.mime_type?.includes('pdf')) return <FileText className="w-8 h-8 text-red-500" />;
+        if (paste.mime_type?.includes('word')) return <FileText className="w-8 h-8 text-blue-500" />;
+        if (paste.mime_type?.includes('sheet')) return <FileText className="w-8 h-8 text-green-500" />;
+        if (paste.language === 'html') return <Globe className="w-8 h-8 text-blue-400" />;
+        return <FileCode className="w-8 h-8 text-yellow-400" />;
+    }
+
     return (
-        <div className="h-screen w-screen overflow-hidden relative bg-[url('https://images.unsplash.com/photo-1477346611705-65d1883cee1e?q=80&w=3270&auto=format&fit=crop')] bg-cover bg-center font-sans">
+        <div
+            className="h-screen w-screen overflow-hidden relative bg-[url('https://images.unsplash.com/photo-1477346611705-65d1883cee1e?q=80&w=3270&auto=format&fit=crop')] bg-cover bg-center font-sans"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+                e.preventDefault();
+                handleFiles(e.dataTransfer.files);
+            }}
+        >
             <div className="absolute inset-0 bg-black/20" />
 
             {/* Top Bar */}
@@ -109,16 +181,25 @@ export default function DesktopPage() {
                     <Link href="/" className="hover:text-white/80 transition-colors"><ArrowLeft className="w-4 h-4 inline mr-1" /> Exit Desktop</Link>
                     <span className="opacity-50">|</span>
                     <span className="cursor-default hover:text-white/80">Finder</span>
-                    <span className="cursor-default hover:text-white/80">File</span>
+                    <span className="cursor-default hover:text-white/80" onClick={handleUploadClick}>File</span>
+                    <span className="cursor-default hover:text-white/80">Edit</span>
                     <span className="cursor-default hover:text-white/80">View</span>
                 </div>
                 <div className="flex items-center gap-4">
                     {user && (
-                        <button onClick={() => { logout(); router.push('/login'); }} className="hover:text-red-400 transition-colors">
-                            <LogOut className="w-4 h-4" />
-                        </button>
+                        <>
+                            <button onClick={handleUploadClick} disabled={uploading} className="hidden sm:flex items-center gap-1 hover:text-primary transition-colors">
+                                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                Upload
+                            </button>
+                            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+
+                            <button onClick={() => { logout(); router.push('/login'); }} className="hover:text-red-400 transition-colors">
+                                <LogOut className="w-4 h-4" />
+                            </button>
+                        </>
                     )}
-                    <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>{new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
             </div>
 
@@ -137,9 +218,9 @@ export default function DesktopPage() {
                             className="group flex flex-col items-center gap-2 p-2 rounded-lg hover:bg-white/10 hover:backdrop-blur-sm transition-colors text-center w-[90px] h-[110px]"
                         >
                             <div className="w-14 h-14 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 flex items-center justify-center text-white shadow-lg group-hover:scale-105 transition-transform">
-                                {paste.language === 'html' ? <Globe className="w-8 h-8 text-blue-400" /> : <FileCode className="w-8 h-8 text-yellow-400" />}
+                                {getFileIcon(paste)}
                             </div>
-                            <span className="text-white text-xs font-medium drop-shadow-md line-clamp-2 leading-tight px-1 bg-black/40 rounded w-full">
+                            <span className="text-white text-xs font-medium drop-shadow-md line-clamp-2 leading-tight px-1 bg-black/40 rounded w-full break-words">
                                 {paste.title || "Untitled"}
                             </span>
                         </button>
@@ -150,10 +231,7 @@ export default function DesktopPage() {
             {/* Windows Layer */}
             {Object.values(windows).map(win => {
                 if (win.type === 'settings') {
-                    // Special rendering for Settings Window to support React interactive form
-                    return (
-                        <SettingsWindowWrapper key={win.id} window={win} />
-                    )
+                    return <SettingsWindowWrapper key={win.id} window={win} />
                 }
                 return <DesktopWindow key={win.id} window={win} />;
             })}
@@ -165,11 +243,7 @@ export default function DesktopPage() {
     );
 }
 
-// Special wrapper for settings to include the form
-import { Rnd } from "react-rnd";
-import { X, Minus } from "lucide-react";
-import ChangePasswordForm from "@/components/ChangePasswordForm";
-
+// Wrapper for Settings
 function SettingsWindowWrapper({ window }: { window: any }) {
     const { closeWindow, minimizeWindow, updateWindowPosition } = useDesktopStore();
     if (window.isMinimized) return null;
@@ -191,9 +265,16 @@ function SettingsWindowWrapper({ window }: { window: any }) {
             </div>
             <div className="flex-1 p-6 text-white overflow-auto">
                 <h2 className="text-xl font-bold mb-6">System Settings</h2>
-                <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                    <h3 className="text-sm font-semibold mb-4 text-gray-300 border-b border-white/5 pb-2">Change Password</h3>
-                    <ChangePasswordForm />
+
+                <div className="space-y-6">
+                    <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                        <h3 className="text-sm font-semibold mb-4 text-gray-300 border-b border-white/5 pb-2">Change Password</h3>
+                        <ChangePasswordForm />
+                    </div>
+
+                    <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                        <AdminPanel />
+                    </div>
                 </div>
             </div>
         </Rnd>

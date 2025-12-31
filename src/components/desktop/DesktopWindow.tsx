@@ -4,6 +4,7 @@ import { Rnd } from "react-rnd";
 import { useDesktopStore, WindowState } from "@/store/desktopStore";
 import { X, Minus, Square, Maximize2 } from "lucide-react";
 import CodeViewer from "./../CodeViewer";
+import { supabase } from "@/lib/supabase";
 
 interface DesktopWindowProps {
   window: WindowState;
@@ -13,6 +14,38 @@ export default function DesktopWindow({ window }: DesktopWindowProps) {
   const { closeWindow, minimizeWindow, maximizeWindow, focusWindow, updateWindowPosition, updateWindowSize } = useDesktopStore();
 
   if (window.isMinimized) return null;
+
+  // Determine content to render
+  const renderContent = () => {
+    if (window.type === 'settings') {
+      // Injected HTML content for simple settings, or we could use component mapping
+      return <div className="p-6 text-white" dangerouslySetInnerHTML={{ __html: window.content || '' }} />;
+    }
+
+    if (window.type === 'preview' && window.language === 'html') {
+      return <iframe srcDoc={window.content} className="w-full h-full bg-white border-0" sandbox="allow-scripts" />;
+    }
+
+    if (window.type === 'doc-viewer' && window.storagePath) {
+      // Get Public URL
+      const { data } = supabase.storage.from('uploads').getPublicUrl(window.storagePath);
+      const publicUrl = data.publicUrl;
+
+      if (window.mimeType === 'application/pdf') {
+        // Use Google Docs viewer fallback or native embed? Native embed is better for PDF usually.
+        // Or generic object.
+        return <iframe src={publicUrl} className="w-full h-full bg-white" />;
+      }
+
+      // Assume Office Document (Word, Excel, PPT)
+      // Use Microsoft Office Online Viewer
+      const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(publicUrl)}`;
+      return <iframe src={officeViewerUrl} className="w-full h-full bg-white" />;
+    }
+
+    // Default: Code Editor
+    return <CodeViewer code={window.content || ""} language={window.language || "text"} />;
+  }
 
   return (
     <Rnd
@@ -60,20 +93,7 @@ export default function DesktopWindow({ window }: DesktopWindowProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-auto bg-[#0d1117] relative">
-        {window.type === 'preview' && window.language === 'html' ? (
-          <iframe
-            srcDoc={window.content}
-            className="w-full h-full bg-white"
-            sandbox="allow-scripts"
-          />
-        ) : window.type === 'settings' ? (
-          <div className="p-6 text-white">
-            {/* Dynamically injected settings content if needed, or simple render */}
-            <div dangerouslySetInnerHTML={{ __html: window.content || '' }} />
-          </div>
-        ) : (
-          <CodeViewer code={window.content || ""} language={window.language || "text"} />
-        )}
+        {renderContent()}
       </div>
     </Rnd>
   );
