@@ -167,6 +167,23 @@ function ViewPasteContent() {
                 </div>
                 <CodeViewer code={paste.content} language={paste.language} />
             </div>
+
+            {/* HTML Preview Frame */}
+            {paste.language === 'html' && (
+                <div className="mt-8">
+                    <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                        <Globe className="w-4 h-4" /> Live Preview
+                    </h3>
+                    <div className="rounded-xl overflow-hidden border border-white/10 bg-white h-[500px]">
+                        <iframe
+                            srcDoc={paste.content}
+                            className="w-full h-full border-0"
+                            sandbox="allow-scripts"
+                            title="Preview"
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
