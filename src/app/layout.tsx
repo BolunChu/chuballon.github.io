@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
     title: 'Pastebin',
-    description: 'A Gist-like pastebin built with Next.js and Supabase',
+    description: 'A modern, secure code sharing platform.',
 }
 
 export default function RootLayout({

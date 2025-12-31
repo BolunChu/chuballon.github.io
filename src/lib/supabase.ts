@@ -1,15 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+// Use placeholders if env vars are missing to prevent build-time crashes (Next.js Static Export)
+// The actual values will be needed at runtime in the browser.
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder'
 
-if (!supabaseUrl || !supabaseAnonKey) {
-    // Check if we are in a build environment where these might not be set (though for static export they usually are needed if we fetch)
-    // But for client side auth usage they are strictly needed.
-    // We'll throw a friendly error if missing in browser.
-    if (typeof window !== 'undefined') {
-        throw new Error('Missing Supabase environment variables')
-    }
-}
-
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '')
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)

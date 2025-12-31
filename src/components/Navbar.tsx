@@ -8,10 +8,12 @@ export default function Navbar() {
     const { user, logout } = useAuth();
 
     return (
-        <nav className="border-b bg-card">
+        <nav className="sticky top-0 z-50 w-full border-b border-white/10 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
             <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-                <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary">
-                    <Code2 className="w-6 h-6" />
+                <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight hover:opacity-80 transition-opacity">
+                    <div className="p-1.5 bg-primary text-primary-foreground rounded-lg">
+                        <Code2 className="w-5 h-5" />
+                    </div>
                     <span>Pastebin</span>
                 </Link>
                 <div className="flex items-center gap-4">
