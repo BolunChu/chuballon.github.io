@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { Loader2, Lock, Globe, FileCode, FileText } from "lucide-react";
-import { Paste } from "@/types/paste"; // Start using a shared type definition if possible, or define locally for now
+// Local type definition
 
 // Re-define for now to avoid complexity, but ideally move to src/types
 interface PasteType {
