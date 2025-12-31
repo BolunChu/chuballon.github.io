@@ -36,7 +36,11 @@ export const uploadFile = async (
             .upload(path, file);
 
         if (uploadError) {
-            console.error("Storage Error:", uploadError);
+            console.error("Storage Error Details:", uploadError);
+            // Check for specific RLS error
+            if ((uploadError as any).statusCode === '403' || uploadError.message.includes('new row violates row-level security policy')) {
+                throw new Error("Storage Permission Denied. Please run the FIX_STORAGE_PERMISSIONS.sql script in Supabase.");
+            }
             throw new Error(`Storage Upload Failed: ${uploadError.message}`);
         }
 
@@ -57,7 +61,7 @@ export const uploadFile = async (
     });
 
     if (rpcError) {
-        console.error("DB Error:", rpcError);
+        console.error("DB Error Details:", rpcError);
         throw new Error(`Database Insert Failed: ${rpcError.message}`);
     }
 

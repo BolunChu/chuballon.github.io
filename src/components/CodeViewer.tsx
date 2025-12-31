@@ -36,7 +36,7 @@ export default function CodeViewer({ code, language }: CodeViewerProps) {
 
     return (
         <div
-            className="overflow-auto max-h-[800px] p-6 text-sm font-mono leading-relaxed"
+            className="overflow-auto max-h-[800px] p-6 text-sm font-mono leading-relaxed [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_code]:!whitespace-pre-wrap"
             // Force background to match container to avoid glitches
             style={{ backgroundColor: '#0d1117' }}
             dangerouslySetInnerHTML={{ __html: html }}
