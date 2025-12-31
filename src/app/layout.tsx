@@ -21,8 +21,6 @@ function MainLayoutContent({ children }: { children: React.ReactNode }) {
     const [isDragging, setIsDragging] = useState(false);
     const [uploading, setUploading] = useState(false);
 
-    // Note: We need to access store inside component
-
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
         if (!user) return;
@@ -40,7 +38,7 @@ function MainLayoutContent({ children }: { children: React.ReactNode }) {
 
         if (!user || !credentials || !e.dataTransfer.files.length) return;
 
-        const file = e.dataTransfer.files[0]; // Handle first file for simplistic main UI
+        const file = e.dataTransfer.files[0];
         setUploading(true);
 
         try {
@@ -49,42 +47,36 @@ function MainLayoutContent({ children }: { children: React.ReactNode }) {
             router.push(`/gist?id=${newId}`);
         } catch (err) {
             console.error(err);
-            alert("Drag and drop upload failed");
+            alert("Upload failed: " + (err instanceof Error ? err.message : "Unknown error"));
         } finally {
             setUploading(false);
         }
     };
 
     return (
-                    </div >
-                </div >
-            )
-}
+        <EndfieldWrapper>
+            <div
+                className={`flex min-h-screen flex-col items-center justify-between transition-colors duration-500 ${isDragging ? "border-4 border-dashed border-primary" : ""}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+            >
+                <Navbar />
+                <main className="flex flex-1 flex-col items-center justify-center w-full max-w-7xl px-4 py-8">
+                    {children}
+                </main>
 
-{/* Uploading Overlay */ }
-<EndfieldWrapper>
-    <div
-        className={`flex min-h-screen flex-col items-center justify-between ${isDragging ? "border-4 border-dashed border-primary" : ""}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-    >
-        <Navbar />
-        <main className="flex flex-1 flex-col items-center justify-center w-full max-w-4xl px-4 py-8">
-            {children}
-        </main>
-
-        {/* Uploading Overlay */}
-        {uploading && (
-            <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-xl border border-white/10">
-                    <Loader2 className="w-10 h-10 animate-spin text-primary" />
-                    <span className="text-lg font-medium">Uploading...</span>
-                </div>
+                {/* Uploading Overlay */}
+                {uploading && (
+                    <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center">
+                        <div className="flex flex-col items-center gap-4 bg-card p-8 rounded-xl border border-white/10 shadow-2xl">
+                            <Loader2 className="w-10 h-10 animate-spin text-primary" />
+                            <span className="text-lg font-medium">Uploading...</span>
+                        </div>
+                    </div>
+                )}
             </div>
-        )}
-    </div>
-</EndfieldWrapper>
+        </EndfieldWrapper>
     );
 }
 
